@@ -14,20 +14,13 @@ import {
   ExternalLink, 
   CheckCircle2, 
   AlertTriangle, 
-  Play,
-  Shield,
   Loader2,
   Eye,
   EyeOff,
   Copy,
-  MapPin,
-  Building2,
-  Info
+  Sparkles,
+  Zap
 } from 'lucide-react'
-
-// Video tutorial atualizado
-const YOUTUBE_TUTORIAL_URL = 'https://youtu.be/phNGWOpboR8?si=3PIlQaLynHXoxUQC'
-const YOUTUBE_EMBED_ID = 'phNGWOpboR8'
 
 export default function ApiConfigPage() {
   const [apiKey, setApiKey] = useState('')
@@ -36,10 +29,7 @@ export default function ApiConfigPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
-  const [testResult, setTestResult] = useState<{
-    geocoding: 'success' | 'error' | 'pending' | null
-    places: 'success' | 'error' | 'pending' | null
-  }>({ geocoding: null, places: null })
+  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null)
 
   useEffect(() => {
     loadApiConfig()
@@ -53,19 +43,17 @@ export default function ApiConfigPage() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('google_places_api_key, api_key_configured')
+      .select('gemini_api_key, api_key_configured')
       .eq('id', user.id)
       .single()
 
     if (profile) {
-      setApiKey(profile.google_places_api_key || '')
-      setIsConfigured(profile.api_key_configured || false)
+      setApiKey(profile.gemini_api_key || '')
+      setIsConfigured(!!profile.gemini_api_key)
     }
     
     setIsLoading(false)
   }
-
-  const [testErrorDetails, setTestErrorDetails] = useState('')
 
   const testApiKey = async () => {
     if (!apiKey.trim()) {
@@ -74,41 +62,27 @@ export default function ApiConfigPage() {
     }
 
     setIsTesting(true)
-    setTestResult({ geocoding: 'pending', places: 'pending' })
-    setTestErrorDetails('')
+    setTestResult(null)
 
     try {
-      const testResponse = await fetch('/api/test-api-key', {
+      const response = await fetch('/api/test-gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey })
       })
 
-      const result = await testResponse.json()
+      const result = await response.json()
 
-      setTestResult({
-        geocoding: result.geocoding ? 'success' : 'error',
-        places: result.places ? 'success' : 'error'
-      })
-
-      if (result.geocoding && result.places) {
-        toast.success('Ambas as APIs estao funcionando! Pode salvar.')
-        setTestErrorDetails('')
+      if (result.success) {
+        setTestResult('success')
+        toast.success('API do Gemini funcionando!')
       } else {
-        const errors = []
-        if (!result.geocoding) errors.push('Geocoding API')
-        if (!result.places) errors.push('Places API')
-        toast.error(`APIs com problema: ${errors.join(', ')}. Clique nos botoes para ativar.`)
-        
-        // Mostra detalhes do erro
-        if (result.error) {
-          setTestErrorDetails(result.error)
-        }
+        setTestResult('error')
+        toast.error(result.error || 'Erro ao testar API')
       }
-    } catch (error) {
-      setTestResult({ geocoding: 'error', places: 'error' })
+    } catch {
+      setTestResult('error')
       toast.error('Erro ao testar a API Key')
-      setTestErrorDetails('Erro de conexao ao testar a API')
     } finally {
       setIsTesting(false)
     }
@@ -134,7 +108,7 @@ export default function ApiConfigPage() {
       const { error } = await supabase
         .from('profiles')
         .update({ 
-          google_places_api_key: apiKey,
+          gemini_api_key: apiKey,
           api_key_configured: true 
         })
         .eq('id', user.id)
@@ -142,8 +116,8 @@ export default function ApiConfigPage() {
       if (error) throw error
 
       setIsConfigured(true)
-      toast.success('API Key salva com sucesso!')
-    } catch (error) {
+      toast.success('API Key do Gemini salva!')
+    } catch {
       toast.error('Erro ao salvar a API Key')
     } finally {
       setIsSaving(false)
@@ -162,7 +136,7 @@ export default function ApiConfigPage() {
       const { error } = await supabase
         .from('profiles')
         .update({ 
-          google_places_api_key: null,
+          gemini_api_key: null,
           api_key_configured: false 
         })
         .eq('id', user.id)
@@ -171,9 +145,9 @@ export default function ApiConfigPage() {
 
       setApiKey('')
       setIsConfigured(false)
-      setTestResult({ geocoding: null, places: null })
+      setTestResult(null)
       toast.success('API Key removida')
-    } catch (error) {
+    } catch {
       toast.error('Erro ao remover a API Key')
     } finally {
       setIsSaving(false)
@@ -197,62 +171,43 @@ export default function ApiConfigPage() {
     <div className="container max-w-4xl py-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Configuracao da API</h1>
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+          <Sparkles className="h-8 w-8 text-blue-500" />
+          Configuracao da API Gemini
+        </h1>
         <p className="text-muted-foreground mt-2">
-          Configure sua API Key do Google para buscar leads reais
+          Configure sua API Key do Google Gemini para buscar leads com inteligencia artificial
         </p>
       </div>
 
-      {/* Aviso BILLING - MUITO IMPORTANTE */}
-      <Alert variant="destructive" className="border-red-500 bg-red-500/10">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>IMPORTANTE: Ative o Faturamento (Billing)!</AlertTitle>
-        <AlertDescription className="space-y-2">
-          <p>
-            Mesmo que voce tenha ativado as APIs, o Google <strong>EXIGE</strong> que voce ative o faturamento no projeto.
-            <strong> Nao se preocupe - voce tem $200 de creditos GRATUITOS por mes e nao sera cobrado!</strong>
-          </p>
-          <a 
-            href="https://console.cloud.google.com/billing" 
-            target="_blank" 
-            rel="noopener noreferrer"
-          >
-            <Button variant="destructive" size="sm" className="mt-2 gap-2">
-              <ExternalLink className="h-4 w-4" />
-              Ativar Faturamento no Google Cloud
-            </Button>
-          </a>
-        </AlertDescription>
-      </Alert>
-
-      {/* Aviso API Key */}
-      <Alert className="border-amber-500/50 bg-amber-500/10">
-        <Info className="h-4 w-4 text-amber-500" />
-        <AlertTitle className="text-amber-500">Uma unica API Key para tudo!</AlertTitle>
+      {/* Destaque - Gemini e GRATIS */}
+      <Alert className="border-green-500/50 bg-green-500/10">
+        <Zap className="h-4 w-4 text-green-500" />
+        <AlertTitle className="text-green-600">100% Gratuito!</AlertTitle>
         <AlertDescription>
-          Voce precisa criar <strong>UMA API Key</strong> no Google Cloud Console e habilitar <strong>2 APIs</strong> nela: 
-          <strong> Places API</strong> e <strong>Geocoding API</strong>. A mesma chave funciona para ambas.
+          A API do Google Gemini oferece <strong>1500 requisicoes gratuitas por dia</strong> no plano free. 
+          Nao precisa de cartao de credito! Perfeito para buscar leads ilimitados.
         </AlertDescription>
       </Alert>
 
       {/* Status */}
-      <Card className={isConfigured ? 'border-green-500/50 bg-green-500/5' : 'border-yellow-500/50 bg-yellow-500/5'}>
+      <Card className={isConfigured ? 'border-green-500/50 bg-green-500/5' : 'border-amber-500/50 bg-amber-500/5'}>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3">
             {isConfigured ? (
               <>
                 <CheckCircle2 className="h-6 w-6 text-green-500" />
                 <div>
-                  <p className="font-semibold text-green-600">API Configurada</p>
-                  <p className="text-sm text-muted-foreground">Sua API Key esta ativa e pronta para uso</p>
+                  <p className="font-semibold text-green-600">API Gemini Configurada</p>
+                  <p className="text-sm text-muted-foreground">Sua API Key esta ativa e pronta para buscar leads</p>
                 </div>
               </>
             ) : (
               <>
-                <AlertTriangle className="h-6 w-6 text-yellow-500" />
+                <AlertTriangle className="h-6 w-6 text-amber-500" />
                 <div>
-                  <p className="font-semibold text-yellow-600">API Nao Configurada</p>
-                  <p className="text-sm text-muted-foreground">Configure sua API Key para comecar a buscar leads</p>
+                  <p className="font-semibold text-amber-600">API Nao Configurada</p>
+                  <p className="text-sm text-muted-foreground">Configure sua API Key do Gemini para comecar</p>
                 </div>
               </>
             )}
@@ -260,169 +215,80 @@ export default function ApiConfigPage() {
         </CardContent>
       </Card>
 
-      {/* Tutorial em Video */}
+      {/* Passo a Passo */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Play className="h-5 w-5 text-red-500" />
-            Tutorial: Como Configurar suas APIs
-          </CardTitle>
-          <CardDescription>
-            Assista ao video tutorial completo para aprender a criar sua API Key e ativar as APIs necessarias
-          </CardDescription>
+          <CardTitle>Como obter sua API Key (2 minutos)</CardTitle>
+          <CardDescription>Siga estes passos simples para configurar</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="aspect-video bg-muted rounded-lg overflow-hidden">
-            <iframe
-              width="100%"
-              height="100%"
-              src={`https://www.youtube.com/embed/${YOUTUBE_EMBED_ID}`}
-              title="Tutorial: Como configurar as APIs do Google"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            <a 
-              href={YOUTUBE_TUTORIAL_URL} 
-              target="_blank" 
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" className="gap-2">
-                <ExternalLink className="h-4 w-4" />
-                Abrir no YouTube
-              </Button>
-            </a>
-            <a 
-              href="https://console.cloud.google.com/apis/credentials" 
-              target="_blank" 
-              rel="noopener noreferrer"
-            >
-              <Button variant="outline" className="gap-2">
-                <Key className="h-4 w-4" />
-                Google Cloud Console
-              </Button>
-            </a>
-          </div>
+          <ol className="space-y-4">
+            <li className="flex gap-3">
+              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">1</Badge>
+              <div>
+                <p className="font-medium">Acesse o Google AI Studio</p>
+                <a 
+                  href="https://aistudio.google.com/app/apikey" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline flex items-center gap-1"
+                >
+                  aistudio.google.com/app/apikey
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">2</Badge>
+              <div>
+                <p className="font-medium">Faca login com sua conta Google</p>
+                <p className="text-sm text-muted-foreground">Use sua conta Google pessoal ou empresarial</p>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">3</Badge>
+              <div>
+                <p className="font-medium">Clique em &quot;Create API Key&quot;</p>
+                <p className="text-sm text-muted-foreground">Selecione &quot;Create API key in new project&quot;</p>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">4</Badge>
+              <div>
+                <p className="font-medium">Copie e cole aqui</p>
+                <p className="text-sm text-muted-foreground">Sua API Key comeca com &quot;AIza...&quot;</p>
+              </div>
+            </li>
+          </ol>
+
+          <a 
+            href="https://aistudio.google.com/app/apikey" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="block"
+          >
+            <Button className="w-full gap-2 bg-blue-500 hover:bg-blue-600">
+              <Sparkles className="h-4 w-4" />
+              Criar API Key do Gemini (Gratis)
+            </Button>
+          </a>
         </CardContent>
       </Card>
-
-      {/* Erro detalhado */}
-      {testErrorDetails && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Detalhes do erro</AlertTitle>
-          <AlertDescription className="font-mono text-xs mt-2 whitespace-pre-wrap">
-            {testErrorDetails}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* APIs Necessarias - Cards grandes */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {/* Places API */}
-        <Card className="border-2 border-blue-500/30 bg-blue-500/5">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Building2 className="h-5 w-5 text-blue-500" />
-                Places API
-              </CardTitle>
-              <Badge variant="destructive">Obrigatoria</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Busca empresas no Google Maps, obtem telefone, site, endereco, avaliacoes e todos os detalhes dos estabelecimentos.
-            </p>
-            
-            {testResult.places && (
-              <div className={`flex items-center gap-2 text-sm ${testResult.places === 'success' ? 'text-green-500' : testResult.places === 'pending' ? 'text-yellow-500' : 'text-red-500'}`}>
-                {testResult.places === 'success' && <CheckCircle2 className="h-4 w-4" />}
-                {testResult.places === 'pending' && <Loader2 className="h-4 w-4 animate-spin" />}
-                {testResult.places === 'error' && <AlertTriangle className="h-4 w-4" />}
-                <span>
-                  {testResult.places === 'success' && 'Funcionando!'}
-                  {testResult.places === 'pending' && 'Testando...'}
-                  {testResult.places === 'error' && 'Nao ativada - clique abaixo para ativar'}
-                </span>
-              </div>
-            )}
-
-            <a 
-              href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="block"
-            >
-              <Button className="w-full gap-2 bg-blue-500 hover:bg-blue-600">
-                <ExternalLink className="h-4 w-4" />
-                Ativar Places API
-              </Button>
-            </a>
-          </CardContent>
-        </Card>
-
-        {/* Geocoding API */}
-        <Card className="border-2 border-green-500/30 bg-green-500/5">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <MapPin className="h-5 w-5 text-green-500" />
-                Geocoding API
-              </CardTitle>
-              <Badge variant="destructive">Obrigatoria</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Converte nomes de cidades (ex: &quot;Guarulhos, SP&quot;) em coordenadas geograficas para a busca funcionar corretamente.
-            </p>
-            
-            {testResult.geocoding && (
-              <div className={`flex items-center gap-2 text-sm ${testResult.geocoding === 'success' ? 'text-green-500' : testResult.geocoding === 'pending' ? 'text-yellow-500' : 'text-red-500'}`}>
-                {testResult.geocoding === 'success' && <CheckCircle2 className="h-4 w-4" />}
-                {testResult.geocoding === 'pending' && <Loader2 className="h-4 w-4 animate-spin" />}
-                {testResult.geocoding === 'error' && <AlertTriangle className="h-4 w-4" />}
-                <span>
-                  {testResult.geocoding === 'success' && 'Funcionando!'}
-                  {testResult.geocoding === 'pending' && 'Testando...'}
-                  {testResult.geocoding === 'error' && 'Nao ativada - clique abaixo para ativar'}
-                </span>
-              </div>
-            )}
-
-            <a 
-              href="https://console.cloud.google.com/apis/library/geocoding-backend.googleapis.com" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="block"
-            >
-              <Button className="w-full gap-2 bg-green-500 hover:bg-green-600">
-                <ExternalLink className="h-4 w-4" />
-                Ativar Geocoding API
-              </Button>
-            </a>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Campo da API Key */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Key className="h-5 w-5" />
-            Sua API Key
+            Sua API Key do Gemini
           </CardTitle>
           <CardDescription>
-            Cole aqui a API Key que voce criou no Google Cloud Console (a mesma chave funciona para ambas as APIs)
+            Cole aqui a API Key que voce criou no Google AI Studio
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="apiKey">Google API Key</Label>
+            <Label htmlFor="apiKey">Gemini API Key</Label>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Input
@@ -432,7 +298,7 @@ export default function ApiConfigPage() {
                   value={apiKey}
                   onChange={(e) => {
                     setApiKey(e.target.value)
-                    setTestResult({ geocoding: null, places: null })
+                    setTestResult(null)
                   }}
                   className="pr-20 font-mono"
                 />
@@ -460,10 +326,27 @@ export default function ApiConfigPage() {
                 </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Sua API Key e armazenada de forma segura e nunca e compartilhada
-            </p>
           </div>
+
+          {/* Resultado do teste */}
+          {testResult && (
+            <div className={`flex items-center gap-2 p-3 rounded-lg ${
+              testResult === 'success' 
+                ? 'bg-green-500/10 text-green-600' 
+                : 'bg-red-500/10 text-red-600'
+            }`}>
+              {testResult === 'success' ? (
+                <CheckCircle2 className="h-5 w-5" />
+              ) : (
+                <AlertTriangle className="h-5 w-5" />
+              )}
+              <span className="font-medium">
+                {testResult === 'success' 
+                  ? 'API funcionando! Pode salvar.' 
+                  : 'Erro na API. Verifique se a chave esta correta.'}
+              </span>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <Button 
@@ -474,12 +357,12 @@ export default function ApiConfigPage() {
               {isTesting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Testando ambas APIs...
+                  Testando...
                 </>
               ) : (
                 <>
-                  <Shield className="h-4 w-4 mr-2" />
-                  Testar API Key
+                  <Zap className="h-4 w-4 mr-2" />
+                  Testar API
                 </>
               )}
             </Button>
@@ -514,106 +397,15 @@ export default function ApiConfigPage() {
         </CardContent>
       </Card>
 
-      {/* Custo */}
+      {/* Info sobre limites */}
       <Alert>
-        <Shield className="h-4 w-4" />
-        <AlertTitle>Sobre os custos</AlertTitle>
+        <Sparkles className="h-4 w-4" />
+        <AlertTitle>Limites do Plano Gratuito</AlertTitle>
         <AlertDescription>
-          O Google oferece <strong>$200 de creditos gratuitos por mes</strong> para novas contas. 
-          Cada busca custa aproximadamente $0.017 (Places) + $0.005 (Geocoding) = ~$0.02.
-          Com os creditos gratuitos voce pode fazer aproximadamente <strong>10.000 buscas por mes sem pagar nada</strong>.
-          Recomendamos configurar alertas de orcamento no Google Cloud Console.
+          O Gemini oferece <strong>1500 requisicoes por dia</strong> e <strong>1 milhao de tokens por minuto</strong> gratuitamente. 
+          Isso e suficiente para buscar milhares de leads por dia sem pagar nada!
         </AlertDescription>
       </Alert>
-
-      {/* Passo a Passo Resumido */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Passo a Passo Rapido</CardTitle>
-          <CardDescription>Siga estes passos ou assista ao video tutorial acima</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-4">
-            <li className="flex gap-3">
-              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">1</Badge>
-              <div>
-                <p className="font-medium">Acesse o Google Cloud Console</p>
-                <a 
-                  href="https://console.cloud.google.com" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline"
-                >
-                  console.cloud.google.com
-                </a>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">2</Badge>
-              <div>
-                <p className="font-medium">Crie um projeto</p>
-                <p className="text-sm text-muted-foreground">De um nome como &quot;LeadMiner&quot;</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <Badge variant="destructive" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">3</Badge>
-              <div>
-                <p className="font-medium text-red-500">ATIVE O FATURAMENTO (Billing)</p>
-                <p className="text-sm text-muted-foreground">Obrigatorio! Sem isso as APIs nao funcionam. Voce tem $200/mes gratis.</p>
-                <a 
-                  href="https://console.cloud.google.com/billing" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline"
-                >
-                  Ativar Faturamento
-                </a>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">4</Badge>
-              <div>
-                <p className="font-medium">Ative as 2 APIs obrigatorias</p>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  <a href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com" target="_blank" rel="noopener noreferrer">
-                    <Badge className="bg-blue-500 hover:bg-blue-600 cursor-pointer gap-1">
-                      <ExternalLink className="h-3 w-3" />
-                      Places API
-                    </Badge>
-                  </a>
-                  <a href="https://console.cloud.google.com/apis/library/geocoding-backend.googleapis.com" target="_blank" rel="noopener noreferrer">
-                    <Badge className="bg-green-500 hover:bg-green-600 cursor-pointer gap-1">
-                      <ExternalLink className="h-3 w-3" />
-                      Geocoding API
-                    </Badge>
-                  </a>
-                </div>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">5</Badge>
-              <div>
-                <p className="font-medium">Crie uma API Key</p>
-                <p className="text-sm text-muted-foreground">Em Credenciais &gt; Criar credenciais &gt; Chave de API</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">5</Badge>
-              <div>
-                <p className="font-medium">Configure o faturamento</p>
-                <p className="text-sm text-muted-foreground">Adicione um cartao (voce recebe $200 de creditos gratuitos)</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center shrink-0">6</Badge>
-              <div>
-                <p className="font-medium">Cole a API Key aqui e teste</p>
-                <p className="text-sm text-muted-foreground">Use o botao &quot;Testar API Key&quot; para verificar se tudo esta funcionando</p>
-              </div>
-            </li>
-          </ol>
-        </CardContent>
-      </Card>
     </div>
   )
 }
