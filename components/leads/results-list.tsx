@@ -52,8 +52,17 @@ export function ResultsList({
       <Alert className="border-purple-500/30 bg-purple-500/5">
         <Sparkles className="h-4 w-4 text-purple-500" />
         <AlertDescription className="text-purple-400">
-          <strong>Fonte: Gemini AI</strong> - Leads encontrados usando inteligencia artificial do Google. 
-          Dados podem incluir nome, telefone, endereco e informacoes do negocio.
+          <strong>Fonte: Gemini AI</strong> - Leads sugeridos pela inteligencia artificial.
+        </AlertDescription>
+      </Alert>
+
+      {/* Aviso importante */}
+      <Alert className="border-amber-500/30 bg-amber-500/5">
+        <AlertCircle className="h-4 w-4 text-amber-500" />
+        <AlertDescription className="text-amber-600 dark:text-amber-400">
+          <strong>IMPORTANTE:</strong> Verifique os dados antes de usar! 
+          A IA pode sugerir empresas com informacoes desatualizadas ou imprecisas. 
+          Confirme telefones e perfis do Instagram antes de contatar.
         </AlertDescription>
       </Alert>
 

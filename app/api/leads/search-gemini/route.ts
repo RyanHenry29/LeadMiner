@@ -16,6 +16,42 @@ interface Lead {
   instagram: string | null
   rating: number | null
   source: string
+  verified: boolean
+}
+
+// Funcao para validar se um perfil do Instagram parece real
+function isValidInstagram(instagram: string | null): boolean {
+  if (!instagram) return true // null e valido
+  const cleaned = instagram.replace('@', '').toLowerCase()
+  // Rejeita perfis muito genericos ou obvimente falsos
+  const fakePatterns = [
+    /^(loja|store|shop|moda|fashion|beleza|beauty|restaurante|clinica|academia)[\d_]*$/i,
+    /^[a-z]+\d{4,}$/i, // palavraseguidas de muitos numeros
+    /^(exemplo|example|teste|test)/i,
+    /^[a-z]{1,3}$/i, // muito curto
+  ]
+  return !fakePatterns.some(pattern => pattern.test(cleaned))
+}
+
+// Funcao para validar telefone brasileiro
+function isValidPhone(phone: string | null): boolean {
+  if (!phone) return true // null e valido
+  const cleaned = phone.replace(/\D/g, '')
+  // Telefone brasileiro tem 10 ou 11 digitos
+  return cleaned.length >= 10 && cleaned.length <= 11
+}
+
+// Funcao para validar se o nome parece real
+function isValidBusinessName(name: string): boolean {
+  if (!name || name.length < 3) return false
+  // Rejeita nomes muito genericos
+  const fakePatterns = [
+    /^(loja de roupas|restaurante|salao de beleza|clinica|academia)\s*\d*$/i,
+    /^empresa\s*\d*$/i,
+    /^negocio\s*\d*$/i,
+    /^comercio\s*\d*$/i,
+  ]
+  return !fakePatterns.some(pattern => pattern.test(name.trim()))
 }
 
 export async function POST(request: Request) {
@@ -69,35 +105,43 @@ export async function POST(request: Request) {
 
     console.log('[v0] Buscando leads com Gemini:', { city, state, niche })
 
-    // Prompt para o Gemini buscar leads
-    const prompt = `Voce e um assistente especializado em encontrar empresas e negocios locais.
+    // Prompt MUITO mais rigoroso para evitar dados inventados
+    const prompt = `Voce e um assistente que conhece empresas brasileiras.
 
-Busque empresas do nicho "${niche}" na cidade de "${city}, ${state}, Brasil".
+TAREFA: Liste empresas REAIS do nicho "${niche}" em "${city}, ${state}, Brasil".
 
-IMPORTANTE:
-- Retorne APENAS empresas REAIS que existem de verdade
-- Inclua o maximo de informacoes que voce conhece: nome, telefone, endereco, site, instagram
-- Foque em empresas locais, pequenas e medias, nao apenas grandes redes
-- Se nao souber o telefone/site exato, deixe como null
-- Retorne entre 10 e 20 empresas
+REGRAS OBRIGATORIAS:
+1. Liste APENAS empresas que voce TEM CERTEZA ABSOLUTA que existem
+2. NAO INVENTE nomes, telefones, enderecos ou perfis de Instagram
+3. Se voce nao conhece empresas reais desta cidade/nicho, retorne lista VAZIA
+4. E MELHOR retornar poucos resultados REAIS do que muitos FALSOS
+5. Telefones devem estar no formato (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
+6. Instagram deve ser o @ real da empresa, nao invente
+7. Se nao souber uma informacao, use null
 
-Retorne APENAS um JSON valido no seguinte formato, sem markdown, sem explicacoes:
+PRIORIZE empresas conhecidas e estabelecidas que voce tem certeza que existem.
+
+Formato JSON obrigatorio (sem markdown):
 {
   "leads": [
     {
-      "name": "Nome da Empresa",
-      "phone": "(11) 99999-9999 ou null",
-      "website": "www.site.com.br ou null",
-      "instagram": "@perfil ou null",
-      "address": "Rua, numero, bairro",
-      "rating": 4.5
+      "name": "Nome REAL da empresa",
+      "phone": "(XX) XXXXX-XXXX ou null se nao souber",
+      "website": "site.com.br ou null se nao souber",
+      "instagram": "@perfil_real ou null se nao souber",
+      "address": "Endereco real ou 'Centro' se nao souber exato",
+      "rating": 4.5,
+      "confidence": "alta"
     }
-  ]
+  ],
+  "note": "explicacao se lista estiver vazia"
 }
 
-RESPONDA APENAS O JSON, SEM TEXTO ADICIONAL.`
+Se NAO conhecer empresas REAIS deste nicho em ${city}, retorne: {"leads": [], "note": "Nao conheco empresas verificadas deste nicho nesta cidade"}
 
-    // Usa gemini-2.5-flash-lite que funciona e tem cota gratuita
+RESPONDA APENAS JSON:`
+
+    // Usa gemini-2.5-flash-lite
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
       {
@@ -106,9 +150,9 @@ RESPONDA APENAS O JSON, SEM TEXTO ADICIONAL.`
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
+            temperature: 0.1, // Baixa temperatura para respostas mais factuais
+            topK: 20,
+            topP: 0.8,
             maxOutputTokens: 4096,
           }
         })
@@ -121,11 +165,10 @@ RESPONDA APENAS O JSON, SEM TEXTO ADICIONAL.`
       
       const errorMessage = error.error?.message || 'Erro na API do Gemini'
       
-      // Verifica se e erro de cota excedida
       if (errorMessage.includes('Quota exceeded') || errorMessage.includes('quota')) {
         return NextResponse.json(
           { 
-            error: 'Cota gratuita do Gemini excedida. Aguarde alguns minutos e tente novamente, ou crie uma nova API Key em aistudio.google.com',
+            error: 'Cota gratuita do Gemini excedida. Aguarde alguns minutos e tente novamente.',
             quotaExceeded: true,
             leads: []
           },
@@ -143,49 +186,79 @@ RESPONDA APENAS O JSON, SEM TEXTO ADICIONAL.`
     const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text
 
     if (!textContent) {
-      return NextResponse.json(
-        { error: 'Resposta vazia do Gemini', leads: [] },
-        { status: 200 }
-      )
+      return NextResponse.json({
+        leads: [],
+        source: 'gemini',
+        total_results: 0,
+        message: 'Nenhum resultado encontrado. Tente outra cidade ou nicho.'
+      })
     }
 
     console.log('[v0] Resposta Gemini:', textContent.substring(0, 500))
 
     // Parse do JSON da resposta
     let parsedLeads: Lead[] = []
+    let geminiNote = ''
     
     try {
-      // Remove possivel markdown
       const jsonText = textContent
         .replace(/```json\n?/g, '')
         .replace(/```\n?/g, '')
         .trim()
       
       const parsed = JSON.parse(jsonText)
+      geminiNote = parsed.note || ''
       
       if (parsed.leads && Array.isArray(parsed.leads)) {
-        parsedLeads = parsed.leads.map((lead: Record<string, unknown>, index: number) => ({
-          id: `gemini_${Date.now()}_${index}`,
-          name: lead.name as string || 'Empresa',
-          phone: lead.phone as string || null,
-          email: lead.email as string || null,
-          website: lead.website as string || null,
-          address: `${lead.address || ''}, ${city}, ${state}`,
-          city: city,
-          state: state,
-          niche: niche,
-          instagram: lead.instagram as string || null,
-          rating: lead.rating as number || null,
-          source: 'gemini'
-        }))
+        // Filtra e valida cada lead
+        parsedLeads = parsed.leads
+          .filter((lead: Record<string, unknown>) => {
+            const name = lead.name as string
+            const phone = lead.phone as string | null
+            const instagram = lead.instagram as string | null
+            
+            // Validacoes
+            if (!isValidBusinessName(name)) return false
+            if (!isValidPhone(phone)) return false
+            if (!isValidInstagram(instagram)) return false
+            
+            // Rejeita se confidence for baixa
+            if (lead.confidence === 'baixa') return false
+            
+            return true
+          })
+          .map((lead: Record<string, unknown>, index: number) => ({
+            id: `gemini_${Date.now()}_${index}`,
+            name: lead.name as string,
+            phone: lead.phone as string || null,
+            email: lead.email as string || null,
+            website: lead.website as string || null,
+            address: `${lead.address || city}, ${city}, ${state}`,
+            city: city,
+            state: state,
+            niche: niche,
+            instagram: lead.instagram as string || null,
+            rating: lead.rating as number || null,
+            source: 'gemini',
+            verified: false // Marcado como nao verificado
+          }))
       }
     } catch (parseError) {
       console.error('[v0] Erro ao parsear JSON:', parseError)
-      // Tenta extrair dados mesmo sem JSON perfeito
       parsedLeads = []
     }
 
-    console.log('[v0] Leads encontrados:', parsedLeads.length)
+    console.log('[v0] Leads validos apos filtragem:', parsedLeads.length)
+
+    // Mensagem de retorno
+    let message = ''
+    if (parsedLeads.length > 0) {
+      message = `Encontrados ${parsedLeads.length} leads. IMPORTANTE: Verifique os dados antes de usar, pois sao sugestoes da IA.`
+    } else if (geminiNote) {
+      message = geminiNote
+    } else {
+      message = `Nenhuma empresa verificada encontrada para "${niche}" em ${city}. A IA nao tem informacoes confiaveis sobre este nicho nesta cidade.`
+    }
 
     return NextResponse.json({
       leads: parsedLeads,
@@ -193,9 +266,10 @@ RESPONDA APENAS O JSON, SEM TEXTO ADICIONAL.`
       total_results: parsedLeads.length,
       credits_used: 0,
       credits_remaining: isAdmin ? -1 : 1500,
-      message: parsedLeads.length > 0 
-        ? `Encontrados ${parsedLeads.length} leads via Gemini AI`
-        : 'Nenhum lead encontrado. Tente outro nicho ou cidade.'
+      message: message,
+      warning: parsedLeads.length > 0 
+        ? 'Dados gerados por IA. Verifique telefones e perfis antes de contatar.'
+        : undefined
     })
 
   } catch (error) {
