@@ -3,7 +3,7 @@
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { Instagram, MapPin, AlertCircle } from 'lucide-react'
+import { Sparkles, AlertCircle } from 'lucide-react'
 import { LeadCard } from './lead-card'
 import type { Lead } from '@/lib/types'
 
@@ -48,35 +48,12 @@ export function ResultsList({
 
   return (
     <div className="space-y-4">
-      {/* Badge de Fonte */}
-      <Alert className={source === 'instagram' 
-        ? 'border-pink-500/30 bg-pink-500/5' 
-        : source === 'openstreetmap' || source === 'nominatim'
-        ? 'border-blue-500/30 bg-blue-500/5'
-        : 'border-green-500/30 bg-green-500/5'
-      }>
-        {source === 'instagram' ? (
-          <Instagram className="h-4 w-4 text-pink-500" />
-        ) : (
-          <MapPin className="h-4 w-4 text-green-500" />
-        )}
-        <AlertDescription className={
-          source === 'instagram' ? 'text-pink-700' 
-          : source === 'openstreetmap' || source === 'nominatim' ? 'text-blue-700'
-          : 'text-green-700'
-        }>
-          <strong>Fonte: {
-            source === 'instagram' ? 'Instagram' 
-            : source === 'openstreetmap' ? 'OpenStreetMap (Gratuito)' 
-            : source === 'nominatim' ? 'Nominatim (Gratuito)'
-            : 'Google Maps'
-          }</strong> - 
-          {source === 'instagram' 
-            ? ' Perfis comerciais encontrados no Instagram. Clique para visitar o perfil.'
-            : source === 'openstreetmap' || source === 'nominatim'
-            ? ' Consulta 100% gratuita. Telefone e site podem nao estar disponiveis.'
-            : ' Empresas com telefone, site e avaliacoes.'
-          }
+      {/* Badge de Fonte - Gemini */}
+      <Alert className="border-purple-500/30 bg-purple-500/5">
+        <Sparkles className="h-4 w-4 text-purple-500" />
+        <AlertDescription className="text-purple-400">
+          <strong>Fonte: Gemini AI</strong> - Leads encontrados usando inteligencia artificial do Google. 
+          Dados podem incluir nome, telefone, endereco e informacoes do negocio.
         </AlertDescription>
       </Alert>
 
@@ -86,16 +63,8 @@ export function ResultsList({
           {results.length} leads encontrados
         </h2>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className={
-            source === 'instagram' 
-              ? 'bg-pink-50 text-pink-700 border-pink-200'
-              : 'bg-green-50 text-green-700 border-green-200'
-          }>
-            {source === 'instagram' ? (
-              <><Instagram className="h-3 w-3 mr-1" /> Instagram</>
-            ) : (
-              <><MapPin className="h-3 w-3 mr-1" /> Maps</>
-            )}
+          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800">
+            <Sparkles className="h-3 w-3 mr-1" /> Gemini AI
           </Badge>
           <Badge variant="secondary">
             {searchQuery.niche} em {searchQuery.city}, {searchQuery.state}

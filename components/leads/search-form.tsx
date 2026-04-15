@@ -13,11 +13,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search, Loader2, MapPin } from 'lucide-react'
+import { Search, Loader2, Sparkles } from 'lucide-react'
 import { BRAZILIAN_STATES } from '@/lib/types'
 
-// Nichos populares
 const POPULAR_NICHES = [
   'Restaurantes', 'Clinicas', 'Academias', 'Saloes de Beleza',
   'Imobiliarias', 'Escritorios de Advocacia', 'Contabilidade',
@@ -25,12 +23,13 @@ const POPULAR_NICHES = [
 ]
 
 interface SearchFormProps {
-  onSearch: (params: { city: string; state: string; niche: string; source: 'maps' }) => void
+  onSearch: (params: { city: string; state: string; niche: string }) => void
   isLoading: boolean
   isAdmin: boolean
+  hasApiKey: boolean
 }
 
-export function SearchForm({ onSearch, isLoading, isAdmin }: SearchFormProps) {
+export function SearchForm({ onSearch, isLoading, isAdmin, hasApiKey }: SearchFormProps) {
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
   const [niche, setNiche] = useState('')
@@ -38,7 +37,7 @@ export function SearchForm({ onSearch, isLoading, isAdmin }: SearchFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (city && state && niche) {
-      onSearch({ city, state, niche, source: 'maps' })
+      onSearch({ city, state, niche })
     }
   }
 
@@ -52,29 +51,20 @@ export function SearchForm({ onSearch, isLoading, isAdmin }: SearchFormProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Selecao de Fonte de Busca */}
-          <div className="space-y-2">
-            <Label>Fonte de Busca</Label>
-            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-              <p className="text-sm text-blue-800 font-medium">Google Maps</p>
-              <p className="text-xs text-blue-700 mt-1">
-                Busca empresas verificadas no Google Maps com telefone, endereco, site e avaliacoes.
-              </p>
-              {!isAdmin && (
-                <p className="text-xs text-blue-600 mt-2">
-                  Requer API Key do Google Cloud Console (gratuito com $200/mes de creditos)
-                </p>
-              )}
+          {/* Info sobre Gemini */}
+          <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              <p className="text-sm text-purple-400 font-medium">Busca com Gemini AI</p>
             </div>
-          </div>
-                  {isAdmin ? (
-                    <span className="text-green-600 font-medium"> Gratuito para Admin.</span>
-                  ) : (
-                    <span className="text-amber-600"> Requer configuracao da API Key.</span>
-                  )}
-                </p>
-              </TabsContent>
-            </Tabs>
+            <p className="text-xs text-purple-300/80 mt-1">
+              Utiliza inteligencia artificial do Google para encontrar leads reais com nome, telefone, endereco e mais.
+            </p>
+            {!hasApiKey && !isAdmin && (
+              <p className="text-xs text-amber-400 mt-2 font-medium">
+                Configure sua API Key do Gemini em &quot;Configurar API&quot; para comecar a buscar.
+              </p>
+            )}
           </div>
 
           {/* Campos de Busca */}
@@ -137,25 +127,33 @@ export function SearchForm({ onSearch, isLoading, isAdmin }: SearchFormProps) {
 
           {/* Botao de Busca */}
           <div className="flex items-center gap-4">
-            <Button type="submit" disabled={isLoading || !city || !state || !niche} className="gap-2">
+            <Button 
+              type="submit" 
+              disabled={isLoading || !city || !state || !niche || (!hasApiKey && !isAdmin)} 
+              className="gap-2"
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Buscando...
+                  Buscando com Gemini...
                 </>
               ) : (
                 <>
-                  <Search className="h-4 w-4" />
+                  <Sparkles className="h-4 w-4" />
                   Buscar Leads
                 </>
               )}
             </Button>
             
-            {isAdmin && (
-              <p className="text-sm text-green-600 font-medium">
+            {isAdmin ? (
+              <p className="text-sm text-green-500 font-medium">
                 Creditos ilimitados (Admin)
               </p>
-            )}
+            ) : !hasApiKey ? (
+              <p className="text-sm text-amber-500">
+                Configure sua API Key primeiro
+              </p>
+            ) : null}
           </div>
         </form>
       </CardContent>
