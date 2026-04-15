@@ -97,9 +97,9 @@ Retorne APENAS um JSON valido no seguinte formato, sem markdown, sem explicacoes
 
 RESPONDA APENAS O JSON, SEM TEXTO ADICIONAL.`
 
-    // Usa gemini-1.5-flash que tem mais cota gratuita disponivel
+    // Usa gemini-2.5-flash-lite que funciona e tem cota gratuita
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
