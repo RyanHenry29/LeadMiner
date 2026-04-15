@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
-import { Info, Shield, AlertCircle } from 'lucide-react'
+import { Sparkles, Shield, AlertCircle, Settings } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { SearchForm } from '@/components/leads/search-form'
 import { ResultsList } from '@/components/leads/results-list'
 import type { Lead } from '@/lib/types'
+import Link from 'next/link'
 
 // Email do admin
 const ADMIN_EMAIL = 'ryanhenry.gomes@gmail.com'
@@ -21,42 +23,47 @@ export default function BuscarPage() {
   const [savedLeads, setSavedLeads] = useState<Set<string>>(new Set())
   const [savingLead, setSavingLead] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [searchSource, setSearchSource] = useState<string>('instagram')
+  const [hasApiKey, setHasApiKey] = useState(false)
   const [searchQuery, setSearchQuery] = useState({ city: '', state: '', niche: '' })
   const [hasSearched, setHasSearched] = useState(false)
 
-  // Verifica se e admin
+  // Verifica se e admin e se tem API key do Gemini
   useEffect(() => {
-    const checkAdmin = async () => {
+    const checkUserConfig = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
+      
       if (user?.email === ADMIN_EMAIL) {
         setIsAdmin(true)
+        setHasApiKey(true) // Admin sempre tem acesso
+        return
+      }
+      
+      if (user) {
+        // Verifica se usuario tem API key configurada
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('gemini_api_key')
+          .eq('id', user.id)
+          .single()
+        
+        setHasApiKey(!!profile?.gemini_api_key)
       }
     }
-    checkAdmin()
+    checkUserConfig()
   }, [])
 
-  // Busca de leads
-  const handleSearch = async (params: { city: string; state: string; niche: string; source: 'instagram' | 'maps' }) => {
-    const { city, state, niche, source } = params
+  // Busca de leads usando Gemini
+  const handleSearch = async (params: { city: string; state: string; niche: string }) => {
+    const { city, state, niche } = params
     
     setIsLoading(true)
     setResults([])
     setSearchQuery({ city, state, niche })
-    setSearchSource(source)
     setHasSearched(true)
     
     try {
-      // Escolhe a API baseada na fonte selecionada
-      let apiUrl = '/api/leads/search-instagram'
-      
-      if (source === 'maps') {
-        // Admin usa API gratuita, usuarios usam Google Places
-        apiUrl = isAdmin ? '/api/leads/search-free' : '/api/leads/search'
-      }
-      
-      const response = await fetch(apiUrl, {
+      const response = await fetch('/api/leads/search-gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ city, state, niche }),
@@ -65,30 +72,20 @@ export default function BuscarPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        if (response.status === 403 && data.redirect) {
-          toast.error('Configure sua API Key do Google Places')
-          router.push(data.redirect)
+        if (response.status === 403) {
+          toast.error('Configure sua API Key do Gemini primeiro')
+          router.push('/dashboard/api-config')
           return
         }
         throw new Error(data.error || data.message || 'Erro na busca')
       }
 
       setResults(data.leads || [])
-      setSearchSource(data.source || source)
 
       if (data.leads && data.leads.length > 0) {
-        const sourceText = source === 'instagram' ? ' via Instagram' : ' via Maps'
-        toast.success(`${data.leads.length} leads encontrados${sourceText}!`)
-      } else if (data.api_error) {
-        toast.error(data.message || data.error, {
-          duration: 10000,
-          action: data.fix_url ? {
-            label: 'Corrigir',
-            onClick: () => window.open(data.fix_url, '_blank')
-          } : undefined
-        })
+        toast.success(`${data.leads.length} leads encontrados via Gemini AI!`)
       } else {
-        toast.warning('Nenhum lead encontrado. Tente outro nicho ou cidade.')
+        toast.warning(data.message || 'Nenhum lead encontrado. Tente outro nicho ou cidade.')
       }
     } catch (error) {
       console.error('Erro na busca:', error)
@@ -130,28 +127,35 @@ export default function BuscarPage() {
       <div>
         <h1 className="text-2xl font-bold">Buscar Leads</h1>
         <p className="text-muted-foreground">
-          Encontre empresas por localizacao e nicho de mercado
+          Encontre empresas por localizacao e nicho de mercado usando Gemini AI
         </p>
       </div>
 
       {/* Aviso Admin */}
       {isAdmin && (
-        <Alert className="border-amber-500/30 bg-amber-500/5">
-          <Shield className="h-4 w-4 text-amber-500" />
-          <AlertDescription className="text-amber-600">
-            <strong>Modo Admin:</strong> Todas as buscas sao gratuitas e ilimitadas. 
-            Instagram e Maps funcionam sem custos de API.
+        <Alert className="border-green-500/30 bg-green-500/5">
+          <Shield className="h-4 w-4 text-green-500" />
+          <AlertDescription className="text-green-500">
+            <strong>Modo Admin:</strong> Todas as buscas sao gratuitas e ilimitadas.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Aviso Usuario Normal */}
-      {!isAdmin && (
-        <Alert className="border-blue-500/30 bg-blue-500/5">
-          <Info className="h-4 w-4 text-blue-500" />
-          <AlertDescription className="text-blue-700">
-            <strong>Dica:</strong> A busca por Instagram e 100% gratuita e nao precisa de configuracao! 
-            Para usar o Google Maps, configure sua API Key em &quot;Configurar API&quot;.
+      {/* Aviso para configurar API */}
+      {!isAdmin && !hasApiKey && (
+        <Alert className="border-amber-500/30 bg-amber-500/5">
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-amber-600 flex items-center justify-between">
+            <span>
+              <strong>Configure sua API Key do Gemini</strong> para comecar a buscar leads. 
+              E gratis e leva menos de 2 minutos!
+            </span>
+            <Button asChild size="sm" variant="outline" className="ml-4">
+              <Link href="/dashboard/api-config">
+                <Settings className="h-4 w-4 mr-2" />
+                Configurar
+              </Link>
+            </Button>
           </AlertDescription>
         </Alert>
       )}
@@ -160,7 +164,8 @@ export default function BuscarPage() {
       <SearchForm 
         onSearch={handleSearch} 
         isLoading={isLoading} 
-        isAdmin={isAdmin} 
+        isAdmin={isAdmin}
+        hasApiKey={hasApiKey}
       />
 
       {/* Resultados */}
@@ -170,7 +175,7 @@ export default function BuscarPage() {
           savedLeads={savedLeads}
           savingLead={savingLead}
           onSaveLead={handleSaveLead}
-          source={searchSource}
+          source="gemini"
           searchQuery={searchQuery}
         />
       )}
@@ -182,7 +187,8 @@ export default function BuscarPage() {
             <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Nenhum resultado encontrado</h3>
             <p className="text-muted-foreground text-center max-w-md">
-              Nao encontramos leads para os filtros selecionados. Tente ajustar sua busca ou usar outra fonte de pesquisa.
+              O Gemini nao encontrou leads para <strong>{searchQuery.niche}</strong> em <strong>{searchQuery.city}, {searchQuery.state}</strong>. 
+              Tente ajustar os termos de busca.
             </p>
           </CardContent>
         </Card>
@@ -191,7 +197,9 @@ export default function BuscarPage() {
       {/* Estado inicial */}
       {!hasSearched && !isLoading && (
         <div className="text-center py-12 text-muted-foreground">
-          <p>Selecione o meio de pesquisa, preencha os filtros e clique em &quot;Buscar Leads&quot;.</p>
+          <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>Preencha os filtros acima e clique em &quot;Buscar Leads&quot; para iniciar.</p>
+          <p className="text-sm mt-2">O Gemini AI ira buscar leads reais com informacoes de contato.</p>
         </div>
       )}
     </div>

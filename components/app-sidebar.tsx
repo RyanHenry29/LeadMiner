@@ -76,7 +76,7 @@ const MENU_ITEMS = [
 
 const SETTINGS_ITEMS = [
   {
-    title: 'Configurar API',
+    title: 'API Gemini',
     href: '/dashboard/api-config',
     icon: Key,
   },
