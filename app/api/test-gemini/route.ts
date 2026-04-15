@@ -9,9 +9,9 @@ export async function POST(request: Request) {
     }
 
     // Testa a API do Gemini com uma requisicao simples
-    // Usa gemini-1.5-flash que tem mais cota gratuita disponivel
+    // Usa gemini-pro que e estavel e tem boa cota gratuita
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
