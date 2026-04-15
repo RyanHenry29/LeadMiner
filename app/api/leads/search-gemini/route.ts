@@ -97,8 +97,9 @@ Retorne APENAS um JSON valido no seguinte formato, sem markdown, sem explicacoes
 
 RESPONDA APENAS O JSON, SEM TEXTO ADICIONAL.`
 
+    // Usa gemini-1.5-flash que tem mais cota gratuita disponivel
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,8 +118,23 @@ RESPONDA APENAS O JSON, SEM TEXTO ADICIONAL.`
     if (!response.ok) {
       const error = await response.json()
       console.error('[v0] Erro Gemini:', error)
+      
+      const errorMessage = error.error?.message || 'Erro na API do Gemini'
+      
+      // Verifica se e erro de cota excedida
+      if (errorMessage.includes('Quota exceeded') || errorMessage.includes('quota')) {
+        return NextResponse.json(
+          { 
+            error: 'Cota gratuita do Gemini excedida. Aguarde alguns minutos e tente novamente, ou crie uma nova API Key em aistudio.google.com',
+            quotaExceeded: true,
+            leads: []
+          },
+          { status: 429 }
+        )
+      }
+      
       return NextResponse.json(
-        { error: error.error?.message || 'Erro na API do Gemini' },
+        { error: errorMessage, leads: [] },
         { status: 500 }
       )
     }

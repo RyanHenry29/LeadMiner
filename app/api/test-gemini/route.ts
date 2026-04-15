@@ -9,8 +9,9 @@ export async function POST(request: Request) {
     }
 
     // Testa a API do Gemini com uma requisicao simples
+    // Usa gemini-1.5-flash que tem mais cota gratuita disponivel
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -22,9 +23,20 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const error = await response.json()
+      const errorMessage = error.error?.message || 'API Key invalida'
+      
+      // Verifica se e erro de cota excedida
+      if (errorMessage.includes('Quota exceeded') || errorMessage.includes('quota')) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Cota gratuita excedida. Aguarde alguns minutos ou crie uma nova API Key.',
+          quotaExceeded: true
+        })
+      }
+      
       return NextResponse.json({ 
         success: false, 
-        error: error.error?.message || 'API Key invalida' 
+        error: errorMessage 
       })
     }
 

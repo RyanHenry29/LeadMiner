@@ -78,7 +78,11 @@ export default function ApiConfigPage() {
         toast.success('API do Gemini funcionando!')
       } else {
         setTestResult('error')
-        toast.error(result.error || 'Erro ao testar API')
+        if (result.quotaExceeded) {
+          toast.error('Cota gratuita excedida. Aguarde alguns minutos ou crie uma nova API Key.')
+        } else {
+          toast.error(result.error || 'Erro ao testar API')
+        }
       }
     } catch {
       setTestResult('error')
@@ -330,21 +334,28 @@ export default function ApiConfigPage() {
 
           {/* Resultado do teste */}
           {testResult && (
-            <div className={`flex items-center gap-2 p-3 rounded-lg ${
+            <div className={`flex items-start gap-2 p-3 rounded-lg ${
               testResult === 'success' 
                 ? 'bg-green-500/10 text-green-600' 
                 : 'bg-red-500/10 text-red-600'
             }`}>
               {testResult === 'success' ? (
-                <CheckCircle2 className="h-5 w-5" />
+                <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
               ) : (
-                <AlertTriangle className="h-5 w-5" />
+                <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
               )}
-              <span className="font-medium">
-                {testResult === 'success' 
-                  ? 'API funcionando! Pode salvar.' 
-                  : 'Erro na API. Verifique se a chave esta correta.'}
-              </span>
+              <div>
+                <span className="font-medium block">
+                  {testResult === 'success' 
+                    ? 'API funcionando! Pode salvar.' 
+                    : 'Erro na API. Verifique se a chave esta correta.'}
+                </span>
+                {testResult === 'error' && (
+                  <span className="text-sm opacity-80 mt-1 block">
+                    Se o erro for de cota excedida, aguarde alguns minutos ou crie uma nova API Key no Google AI Studio.
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
